@@ -1,47 +1,53 @@
-pipeline{
+pipeline {
     agent any
     environment {
-        PATH = "$PATH:/usr/share/maven/bin"
+        AWS_ACCOUNT_ID="969242655431"
+        AWS_DEFAULT_REGION="ap-south-1" 
+        IMAGE_REPO_NAME="jenkins-pipeline-3-docker"
+        IMAGE_TAG="latest"
+        REPOSITORY_URI = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_NAME}"
+		PATH = "$PATH:/opt/maven/bin"
     }
-    stages{
-       stage('GetCode'){
+   
+    stages {
+        
+         stage('Logging into AWS ECR') {
+            steps {
+                script {
+                sh "aws ecr get-login-password --region ${AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
+                }
+                 
+            }
+        }
+        
+        stage('GetCode'){
             steps{
                 git 'https://github.com/Sacbank/java-login-app.git'
             }
-         } 
-		stage('SonarQube analysis') {
-//    def scannerHome = tool 'SonarScanner 4.0.0';
-        steps{
-        withSonarQubeEnv('sonarqube-8.9.9') { 
-        // If you have configured more than one global server connection, you can specify its name
-//      sh "${scannerHome}/bin/sonar-scanner"
-        sh "mvn sonar:sonar"
-    }
+         }
+		stage('Build') {
+           steps {
+        	sh '"mvn" -Dmaven.test.failure.ignore clean install' 
+      		}
+    	}
+  
+    // Building Docker images
+    stage('Building image') {
+      steps{
+        script {
+          dockerImage = docker.build "${IMAGE_REPO_NAME}:${IMAGE_TAG}"
         }
-        } 
-       stage('Build'){
-            steps{
-                sh 'mvn clean package'
-            }
-         }
-        stage('Test'){
-            steps{
-                sh 'mvn test'
-            }
-            post {
-                
-                success {
-                    junit '**/target/surefire-reports/TEST-*.xml'
-                }
-            }
-         }
-		
-         stage('Deploy') {
-      steps {   
-         deploy adapters: [tomcat8(credentialsId: 'deploy', path: '', url: 'http://65.2.11.146:8080')], contextPath: null, war: '**/**.war'
+      }
     }
-    }
-       
+   
+    // Uploading Docker images into AWS ECR
+    stage('Pushing to ECR') {
+     steps{  
+         script {
+                sh "docker tag ${IMAGE_REPO_NAME}:${IMAGE_TAG} ${REPOSITORY_URI}:$IMAGE_TAG"
+                sh "docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_NAME}:${IMAGE_TAG}"
+         }
+        }
+      }
     }
 }
-
