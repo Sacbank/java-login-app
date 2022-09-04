@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jenkins-pipeline-3-docker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jenkins-pipeline-3-docker
+  minReadySeconds: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app: jenkins-pipeline-3-docker
+    spec:
+      containers:
+        - name: java-app
+          image: 969242655431.dkr.ecr.ap-south-1.amazonaws.com/jenkins-pipeline-3-docker:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jenkins-pipeline-3-docker
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 80
+      targetPort: 8080
+  selector:
+    app: jenkins-pipeline-3-docker
