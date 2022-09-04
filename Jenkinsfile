@@ -49,5 +49,28 @@ pipeline {
          }
         }
       }
+	  stage("Deploy to EKS"){
+      steps{
+	  
+		withKubeConfig(caCertificate: '', clusterName: '', contextName: '', credentialsId: 'K8S', namespace: '', serverUrl: '') {
+          		sh '''if /var/lib/jenkins/bin/kubectl get deploy | grep java-login-app
+            		then
+            		/var/lib/jenkins/bin/kubectl set image deployment jenkins-pipeline-3-docker java-app=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_NAME}:${IMAGE_TAG}
+            		/var/lib/jenkins/bin/kubectl rollout restart deployment java-login-app
+            		else
+		    	/var/lib/jenkins/bin/kubectl apply -f deployment.yaml
+            		fi'''
+			}
+			
+		}
+      }
+    
+    stage("Wait for Deployments") {
+      steps {
+        timeout(time: 2, unit: 'MINUTES') {
+          sh '/var/lib/jenkins/bin/kubectl get svc'
+        }
+      }
+    }
     }
 }
